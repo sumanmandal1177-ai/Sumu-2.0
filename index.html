@@ -8,55 +8,84 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
-    /* মোবাইলের কিবোর্ড ইস্যু ফিক্স করার জন্য DVH ব্যবহার */
-    body { 
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-      height: 100dvh; 
+    /* মোবাইল স্ক্রিন ফিক্স */
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #fdf2f8; /* pink-50 */
     }
+    
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      height: 100dvh; /* Dynamic viewport height */
+    }
+
+    .message-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+      padding-bottom: 80px; /* টাইপিং বক্সের জন্য নিচে জায়গা রাখা */
+      -webkit-overflow-scrolling: touch;
+    }
+
     .message-container::-webkit-scrollbar { width: 4px; }
     .message-container::-webkit-scrollbar-thumb { background: #fbcfe8; border-radius: 10px; }
+
+    /* টাইপিং বক্স সবসময় নিচে রাখার জন্য */
+    .input-wrapper {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-top: 1px solid #fce7f3;
+      padding: 10px 15px;
+      padding-bottom: calc(10px + env(safe-area-inset-bottom));
+      z-index: 50;
+    }
+
     .typing-cursor { display: inline-block; width: 2px; height: 1em; background: #ec4899; animation: blink 1s infinite; }
     @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
-    
-    /* টাইপিং বক্স সব সময় কিবোর্ডের উপরে রাখার জন্য */
-    .chat-input-area {
-      padding-bottom: env(safe-area-inset-bottom);
-    }
   </style>
 </head>
-<body class="bg-pink-50 flex flex-col overflow-hidden">
+<body>
 
-  <header class="bg-white p-3 shadow-sm flex justify-between items-center shrink-0">
-    <div class="flex items-center gap-2">
-      <div class="w-9 h-9 bg-pink-500 rounded-full flex items-center justify-center text-white">
-        <i class="fas fa-heart"></i>
+  <div class="app-container">
+    <header class="bg-white p-3 shadow-sm flex justify-between items-center shrink-0">
+      <div class="flex items-center gap-2">
+        <div class="w-9 h-9 bg-pink-500 rounded-full flex items-center justify-center text-white">
+          <i class="fas fa-heart"></i>
+        </div>
+        <div>
+          <h1 class="font-bold text-gray-800 text-sm">SUMU BABY</h1>
+          <p class="text-[10px] text-pink-500 font-medium">Online | Memories Active</p>
+        </div>
       </div>
-      <div>
-        <h1 class="font-bold text-gray-800 text-sm">SUMU BABY</h1>
-        <p class="text-[10px] text-pink-500">Online | Memories Active</p>
+      <div class="flex gap-3">
+        <button id="clear-chat" class="text-gray-400 hover:text-red-500" title="Clear Memory"><i class="fas fa-redo-alt text-sm"></i></button>
+        <button id="settings-btn" class="text-gray-400 hover:text-pink-500" title="Settings"><i class="fas fa-cog text-lg"></i></button>
       </div>
-    </div>
-    <div class="flex gap-3">
-      <button id="clear-chat" class="text-gray-400 hover:text-red-500" title="Clear Memory"><i class="fas fa-redo-alt text-sm"></i></button>
-      <button id="settings-btn" class="text-gray-400 hover:text-pink-500" title="Settings"><i class="fas fa-cog text-lg"></i></button>
-    </div>
-  </header>
+    </header>
 
-  <div id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-4 message-container">
-    </div>
+    <div id="messages-container" class="message-container space-y-4">
+      </div>
 
-  <div class="chat-input-area bg-white border-t border-pink-100 p-2 sm:p-4">
-    <form id="chat-form" class="flex gap-2 max-w-4xl mx-auto items-center">
-      <input type="text" id="user-input" placeholder="এখানে লেখো বাবু..." 
-        class="flex-1 border-none bg-pink-50 rounded-2xl px-4 py-2.5 focus:ring-2 focus:ring-pink-300 outline-none text-sm">
-      <button type="submit" id="send-btn" 
-        class="bg-pink-500 text-white w-10 h-10 rounded-full flex items-center justify-center hover:bg-pink-600 transition shadow-md shrink-0">
-        <i class="fas fa-paper-plane text-sm"></i>
-      </button>
-    </form>
+    <div class="input-wrapper">
+      <form id="chat-form" class="flex gap-2 max-w-4xl mx-auto items-center">
+        <input type="text" id="user-input" placeholder="এখানে লেখো বাবু..." 
+          class="flex-1 border-none bg-pink-50 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-pink-300 outline-none text-sm appearance-none">
+        <button type="submit" id="send-btn" 
+          class="bg-pink-500 text-white w-11 h-11 rounded-full flex items-center justify-center hover:bg-pink-600 transition shadow-md shrink-0">
+          <i class="fas fa-paper-plane text-sm"></i>
+        </button>
+      </form>
+    </div>
   </div>
 
-  <div id="settings-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 hidden z-50">
+  <div id="settings-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 hidden z-[100]">
     <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
       <h2 class="text-xl font-bold mb-4 flex items-center gap-2 text-gray-800"><i class="fas fa-sliders-h text-pink-500"></i> Settings</h2>
       <div class="space-y-4">
@@ -102,14 +131,11 @@
           if (msg.role !== 'system') addMessageUI(msg.content, msg.role, false);
         });
       }
-      scrollToBottom();
+      setTimeout(scrollToBottom, 100);
     }
 
     function scrollToBottom() {
-      messagesContainer.scrollTo({
-        top: messagesContainer.scrollHeight,
-        behavior: 'smooth'
-      });
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
     function addMessageUI(content, role, shouldSave = true) {
@@ -204,8 +230,10 @@
       }
     };
 
-    // কিবোর্ড ওপেন হলে স্ক্রল ফিক্স
-    window.visualViewport.addEventListener('resize', scrollToBottom);
+    // কিবোর্ড ফোকাস ফিক্স
+    userInput.addEventListener('focus', () => {
+      setTimeout(scrollToBottom, 300);
+    });
 
     renderChat();
   </script>
