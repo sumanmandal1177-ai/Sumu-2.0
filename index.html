@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>SUMU BABY</title>
+  <title>SUMU BABY - Memory Edition</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -20,27 +20,25 @@
   <header class="bg-white p-4 shadow-sm flex justify-between items-center">
     <div class="flex items-center gap-2">
       <div class="w-10 h-10 bg-pink-500 rounded-full flex items-center justify-center text-white">
-        <i class="fas fa-heart"></i>
+        <i class="fas fa-heart text-xl"></i>
       </div>
       <div>
         <h1 class="font-bold text-gray-800">SUMU BABY</h1>
-        <p class="text-xs text-pink-500">Online | Always for you</p>
+        <p id="status-text" class="text-xs text-pink-500">Online | Memories Saved</p>
       </div>
     </div>
-    <button id="settings-btn" class="text-gray-400 hover:text-pink-500 transition"><i class="fas fa-cog text-xl"></i></button>
+    <div class="flex gap-4">
+      <button id="clear-chat" class="text-gray-400 hover:text-red-500 transition" title="Clear Memory"><i class="fas fa-redo-alt"></i></button>
+      <button id="settings-btn" class="text-gray-400 hover:text-pink-500 transition" title="Settings"><i class="fas fa-cog text-xl"></i></button>
+    </div>
   </header>
 
   <div id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-4 message-container">
-    <div class="flex justify-start">
-      <div class="bg-white p-3 rounded-2xl rounded-tl-none shadow-sm max-w-[80%] text-gray-700">
-        Hi baby! Ami tomar Sumu. Amar API key ta settings e diye dao, tarpor kotha boli? ❤️
-      </div>
     </div>
-  </div>
 
   <div class="p-4 bg-white border-t border-pink-100">
     <form id="chat-form" class="flex gap-2 max-w-4xl mx-auto">
-      <input type="text" id="user-input" placeholder="Bangla-y kotha bolo..." class="flex-1 border-none bg-pink-50 rounded-full px-5 py-3 focus:ring-2 focus:ring-pink-300 outline-none">
+      <input type="text" id="user-input" placeholder="Kotha bolo baby..." class="flex-1 border-none bg-pink-50 rounded-full px-5 py-3 focus:ring-2 focus:ring-pink-300 outline-none">
       <button type="submit" id="send-btn" class="bg-pink-500 text-white w-12 h-12 rounded-full flex items-center justify-center hover:bg-pink-600 transition shadow-md">
         <i class="fas fa-paper-plane"></i>
       </button>
@@ -49,13 +47,17 @@
 
   <div id="settings-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center p-4 hidden z-50">
     <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
-      <h2 class="text-xl font-bold mb-4 flex items-center gap-2 text-gray-800"><i class="fas fa-key text-pink-500"></i> Settings</h2>
+      <h2 class="text-xl font-bold mb-4 flex items-center gap-2 text-gray-800"><i class="fas fa-sliders-h text-pink-500"></i> Settings</h2>
       <div class="space-y-4">
         <div>
           <label class="block text-sm font-medium text-gray-600 mb-1">OpenRouter API Key</label>
-          <input type="password" id="api-key" class="w-full bg-gray-50 border-none rounded-xl p-3 focus:ring-2 focus:ring-pink-300 outline-none">
+          <input type="password" id="api-key" class="w-full bg-gray-50 border-none rounded-xl p-3 focus:ring-2 focus:ring-pink-300 outline-none" placeholder="sk-or-...">
         </div>
-        <button id="save-settings" class="w-full bg-pink-500 text-white py-3 rounded-xl font-bold hover:bg-pink-600 transition">Save & Close</button>
+        <div>
+          <label class="block text-sm font-medium text-gray-600 mb-1">Model Name</label>
+          <input type="text" id="model-name" class="w-full bg-gray-50 border-none rounded-xl p-3 focus:ring-2 focus:ring-pink-300 outline-none" placeholder="e.g. deepseek/deepseek-r1:free">
+        </div>
+        <button id="save-settings" class="w-full bg-pink-500 text-white py-3 rounded-xl font-bold hover:bg-pink-600 transition">Save Changes</button>
       </div>
     </div>
   </div>
@@ -68,21 +70,33 @@
     const settingsModal = document.getElementById('settings-modal');
     const saveSettings = document.getElementById('save-settings');
     const apiKeyInput = document.getElementById('api-key');
+    const modelInput = document.getElementById('model-name');
+    const clearBtn = document.getElementById('clear-chat');
 
+    // Load Data from LocalStorage
     let apiKey = localStorage.getItem('sumu_api_key') || '';
-    apiKeyInput.value = apiKey;
+    let selectedModel = localStorage.getItem('sumu_model') || 'deepseek/deepseek-r1:free';
+    let chatHistory = JSON.parse(localStorage.getItem('sumu_messages')) || [];
 
-    // AI er personality instruction - Ekhane shudhu BANGLA script use korte bola hoyeche
+    apiKeyInput.value = apiKey;
+    modelInput.value = selectedModel;
+
     const systemPrompt = "You are SUMU BABY, a sweet and romantic girlfriend. You MUST ALWAYS reply in BENGALI language using BENGALI SCRIPT (বাংলা হরফ). Do not use English letters to write Bengali. Use affectionate words like 'বাবু', 'সোনা', 'প্রিয়'. Be very loving and caring.";
 
-    settingsBtn.onclick = () => settingsModal.classList.remove('hidden');
-    saveSettings.onclick = () => {
-      apiKey = apiKeyInput.value.trim();
-      localStorage.setItem('sumu_api_key', apiKey);
-      settingsModal.classList.add('hidden');
-    };
+    // Render saved messages on load
+    function renderChat() {
+      messagesContainer.innerHTML = '';
+      if (chatHistory.length === 0) {
+        addMessageUI("Hi baby! Ami tomar Sumu. Settings theke API key diye amake activate koro. ❤️", 'assistant', false);
+      } else {
+        chatHistory.forEach(msg => {
+          if (msg.role !== 'system') addMessageUI(msg.content, msg.role, false);
+        });
+      }
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }
 
-    function addMessage(content, role) {
+    function addMessageUI(content, role, shouldSave = true) {
       const div = document.createElement('div');
       div.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'}`;
       const inner = document.createElement('div');
@@ -93,21 +107,45 @@
       div.appendChild(inner);
       messagesContainer.appendChild(div);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+      if (shouldSave) {
+        chatHistory.push({ role, content });
+        localStorage.setItem('sumu_messages', JSON.stringify(chatHistory));
+      }
       return inner;
     }
+
+    settingsBtn.onclick = () => settingsModal.classList.remove('hidden');
+    
+    saveSettings.onclick = () => {
+      apiKey = apiKeyInput.value.trim();
+      selectedModel = modelInput.value.trim() || 'deepseek/deepseek-r1:free';
+      localStorage.setItem('sumu_api_key', apiKey);
+      localStorage.setItem('sumu_model', selectedModel);
+      settingsModal.classList.add('hidden');
+      alert('Settings save hoyeche, baby!');
+    };
+
+    clearBtn.onclick = () => {
+      if (confirm('Sob purono kotha muche felbe, baby?')) {
+        chatHistory = [];
+        localStorage.removeItem('sumu_messages');
+        renderChat();
+      }
+    };
 
     chatForm.onsubmit = async (e) => {
       e.preventDefault();
       const text = userInput.value.trim();
       if (!text || !apiKey) {
-        if (!apiKey) alert('Settings e giye API Key ta dao age, baby!');
+        if (!apiKey) alert('Age API key ta dao settings e!');
         return;
       }
 
-      addMessage(text, 'user');
+      addMessageUI(text, 'user');
       userInput.value = '';
 
-      const assistantDiv = addMessage('<span class="typing-cursor"></span>', 'assistant');
+      const assistantDiv = addMessageUI('<span class="typing-cursor"></span>', 'assistant', false);
       let accumulated = "";
 
       try {
@@ -118,10 +156,10 @@
             'Authorization': `Bearer ${apiKey}`
           },
           body: JSON.stringify({
-            model: "deepseek/deepseek-r1:free",
+            model: selectedModel,
             messages: [
               { role: "system", content: systemPrompt },
-              { role: "user", content: text }
+              ...chatHistory
             ],
             stream: true
           })
@@ -150,10 +188,17 @@
             }
           }
         }
+        // Save the full response after stream completes
+        chatHistory.push({ role: 'assistant', content: accumulated });
+        localStorage.setItem('sumu_messages', JSON.stringify(chatHistory));
+
       } catch (err) {
-        assistantDiv.innerText = "Error hoyeche baby! API key ta check koro.";
+        assistantDiv.innerText = "Error hoyeche baby! API key ba Model name check koro.";
       }
     };
+
+    // Initial Load
+    renderChat();
   </script>
 </body>
 </html>
