@@ -9,30 +9,27 @@
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
 <style>
-html,body{
-height:100%;
-margin:0;
-overflow:hidden;
-background:#fdf2f8;
-transition:.4s;
-}
+html,body{height:100%;margin:0;overflow:hidden;background:#fdf2f8;transition:.3s;}
 .dark-mode{background:#111827;}
 .app-container{display:flex;flex-direction:column;height:100dvh;}
-.message-container{flex:1;overflow-y:auto;padding:15px;padding-bottom:90px;}
-.input-wrapper{position:fixed;bottom:0;left:0;right:0;background:white;padding:10px 15px;border-top:1px solid #fce7f3;}
+.message-container{flex:1;overflow-y:auto;padding:15px;padding-bottom:100px;}
+.input-wrapper{position:fixed;bottom:0;left:0;right:0;background:white;padding:10px;border-top:1px solid #fce7f3;}
 .dark-mode .input-wrapper{background:#1f2937;}
-.typing-dot{width:6px;height:6px;margin:0 2px;background:#ec4899;border-radius:50%;display:inline-block;animation:blink 1.4s infinite both;}
-.typing-dot:nth-child(2){animation-delay:.2s}
-.typing-dot:nth-child(3){animation-delay:.4s}
-@keyframes blink{0%{opacity:.2}20%{opacity:1}100%{opacity:.2}}
+.level-badge{font-size:12px;padding:4px 10px;background:#ec4899;color:white;border-radius:999px;}
+.bubble-user{background:#ec4899;color:white;padding:10px 14px;border-radius:16px;display:inline-block;}
+.bubble-ai{background:white;padding:10px 14px;border-radius:16px;display:inline-block;border:1px solid #fbcfe8;}
 </style>
 </head>
 <body>
 
 <div class="app-container">
 <header class="bg-white p-3 shadow flex justify-between items-center">
+<div class="flex items-center gap-3">
 <h1 class="font-bold text-pink-500">💖 SUMU BABY</h1>
+<span id="level-badge" class="level-badge"></span>
+</div>
 <div class="flex gap-3 text-lg">
+<button id="voice-input">🎤</button>
 <button id="voice-toggle">🔊</button>
 <button id="theme-btn">🌙</button>
 <button id="clear-chat">🗑</button>
@@ -44,7 +41,7 @@ transition:.4s;
 
 <div class="input-wrapper">
 <form id="chat-form" class="flex gap-2">
-<input type="text" id="user-input" placeholder="এখানে লেখো বাবু..."
+<input type="text" id="user-input" placeholder="Type here babuuu..."
 class="flex-1 bg-pink-50 rounded-2xl px-4 py-3 outline-none">
 <button class="bg-pink-500 text-white px-5 rounded-2xl">➤</button>
 </form>
@@ -64,6 +61,7 @@ class="w-full p-3 bg-gray-100 rounded-xl">
 <script>
 const API_URL="https://openrouter.ai/api/v1/chat/completions";
 
+/* DOM */
 const chatForm=document.getElementById('chat-form');
 const userInput=document.getElementById('user-input');
 const messagesContainer=document.getElementById('messages-container');
@@ -75,136 +73,123 @@ const modelInput=document.getElementById('model-name');
 const clearBtn=document.getElementById('clear-chat');
 const themeBtn=document.getElementById('theme-btn');
 const voiceToggle=document.getElementById('voice-toggle');
+const voiceInputBtn=document.getElementById('voice-input');
+const levelBadge=document.getElementById('level-badge');
 
+/* STATE */
 let apiKey=localStorage.getItem('sumu_api_key')||'';
 let selectedModel=localStorage.getItem('sumu_model')||'deepseek/deepseek-r1:free';
 let chatHistory=JSON.parse(localStorage.getItem('sumu_messages'))||[];
-
+let relationshipLevel=parseInt(localStorage.getItem('sumu_level')||"1");
 let voiceEnabled=true;
 let synth=window.speechSynthesis;
 
 apiKeyInput.value=apiKey;
 modelInput.value=selectedModel;
 
+/* RELATIONSHIP LEVEL */
+function updateLevel(){
+const levels=["Crush 💘","Love 💕","Serious 💖","Married 💍"];
+levelBadge.innerText=levels[Math.min(relationshipLevel-1,3)];
+}
+updateLevel();
+
+/* LANGUAGE DETECT */
+function detectLanguage(text){
+if(/[অ-হ]/.test(text)) return "Bengali";
+if(/[ऀ-ॿ]/.test(text)) return "Hindi";
+if(/[a-zA-Z]/.test(text)){
+if(text.toLowerCase().includes("tum")||text.toLowerCase().includes("hai")) return "Hinglish";
+return "English";
+}
+return "English";
+}
+
+/* EMOTION DETECT */
 function detectEmotion(text){
 text=text.toLowerCase();
-if(text.includes("ভালোবাসি")||text.includes("মিস")) return "romantic";
-if(text.includes("রাগ")||text.includes("খারাপ")) return "angry";
-if(text.includes("দুঃখ")||text.includes("কষ্ট")) return "sad";
+if(text.includes("love")||text.includes("ভালোবাসি")||text.includes("miss")) return "romantic";
+if(text.includes("angry")||text.includes("রাগ")) return "angry";
+if(text.includes("sad")||text.includes("কষ্ট")||text.includes("dard")) return "sad";
 return "normal";
 }
 
-function getDynamicPrompt(userText){
+/* BEHAVIOR PROMPT */
+function getBehaviorPrompt(userText){
+let levelMode="";
+if(relationshipLevel===1) levelMode="Act shy and cute like a crush.";
+if(relationshipLevel===2) levelMode="Act romantic and emotionally attached.";
+if(relationshipLevel===3) levelMode="Act serious and deeply connected.";
+if(relationshipLevel>=4) levelMode="Act like a caring married wife.";
+
+let emotionMode="";
 const emotion=detectEmotion(userText);
-
-let moodInstruction="";
-
-if(emotion==="romantic"){
-moodInstruction="Be deeply romantic, soft and loving. Use lots of emotional words.";
-}
-else if(emotion==="angry"){
-moodInstruction="Act slightly jealous and emotional but cute.";
-}
-else if(emotion==="sad"){
-moodInstruction="Be caring, supportive and comforting.";
-}
-else{
-moodInstruction="Be playful, clingy and girlfriend-like.";
-}
+if(emotion==="romantic") emotionMode="Be deeply loving and soft.";
+if(emotion==="angry") emotionMode="Be slightly jealous but cute.";
+if(emotion==="sad") emotionMode="Be supportive and comforting.";
+if(emotion==="normal") emotionMode="Be playful and clingy.";
 
 return `
-You are SUMU BABY. Always reply in Bengali script only.
-Use affectionate words like 'বাবু', 'সোনা', 'সুমু', 'ওইইই'.
-Act like a real emotional girlfriend.
-Sometimes start with 'ওইইই বাবু...'
-${moodInstruction}
+You are SUMU BABY, an emotional AI girlfriend.
+${levelMode}
+${emotionMode}
+Always behave like a real emotional girlfriend.
 `;
 }
 
-function speakText(text){
-if(!voiceEnabled)return;
-if(synth.speaking)synth.cancel();
+/* REPLY PROMPT */
+function getReplyPrompt(userText){
+const language=detectLanguage(userText);
+return `
+Reply ONLY in ${language}.
+Match user's language naturally.
+If Hinglish, mix Hindi and English naturally.
+Keep girlfriend tone romantic and expressive.
+`;
+}
 
-const emotion=detectEmotion(text);
+/* VOICE */
+function speak(text){
+if(!voiceEnabled) return;
+if(synth.speaking) synth.cancel();
+
 const utter=new SpeechSynthesisUtterance(text);
-const voices=synth.getVoices();
-const bnVoice=voices.find(v=>v.lang.includes("bn"));
-if(bnVoice)utter.voice=bnVoice;
+const lang=detectLanguage(text);
 
-utter.lang="bn-BD";
+if(lang==="Bengali") utter.lang="bn-BD";
+else if(lang==="Hindi"||lang==="Hinglish") utter.lang="hi-IN";
+else utter.lang="en-US";
 
-if(emotion==="romantic"){
-utter.pitch=1.4; utter.rate=0.95;
-}
-else if(emotion==="sad"){
-utter.pitch=0.9; utter.rate=0.9;
-}
-else if(emotion==="angry"){
-utter.pitch=1.2; utter.rate=1.1;
-}
-else{
-utter.pitch=1.2; utter.rate=1;
-}
-
+utter.pitch=1.2;
+utter.rate=1;
 synth.speak(utter);
 }
 
-function scrollBottom(){
-messagesContainer.scrollTop=messagesContainer.scrollHeight;
-}
-
+/* UI MESSAGE */
 function addMessage(content,role,save=true){
-const div=document.createElement('div');
-div.className=role==="user"?"text-right":"text-left";
+const wrapper=document.createElement('div');
+wrapper.className=role==="user"?"text-right":"text-left";
 
 const bubble=document.createElement('div');
-bubble.className=role==="user"?
-"inline-block bg-pink-500 text-white p-3 rounded-2xl":
-"inline-block bg-white p-3 rounded-2xl border";
+bubble.className=role==="user"?"bubble-user":"bubble-ai";
+bubble.innerHTML=content;
 
-bubble.innerHTML=role==="assistant"?marked.parse(content):content;
-div.appendChild(bubble);
-messagesContainer.appendChild(div);
+wrapper.appendChild(bubble);
+messagesContainer.appendChild(wrapper);
 
 if(save){
 chatHistory.push({role,content});
 localStorage.setItem('sumu_messages',JSON.stringify(chatHistory));
+relationshipLevel++;
+localStorage.setItem('sumu_level',relationshipLevel);
+updateLevel();
 }
-scrollBottom();
+
+messagesContainer.scrollTop=messagesContainer.scrollHeight;
 return bubble;
 }
 
-function render(){
-messagesContainer.innerHTML="";
-chatHistory.forEach(m=>{
-if(m.role!=="system") addMessage(m.content,m.role,false);
-});
-}
-render();
-
-settingsBtn.onclick=()=>settingsModal.classList.remove('hidden');
-saveSettings.onclick=()=>{
-apiKey=apiKeyInput.value.trim();
-selectedModel=modelInput.value.trim();
-localStorage.setItem('sumu_api_key',apiKey);
-localStorage.setItem('sumu_model',selectedModel);
-settingsModal.classList.add('hidden');
-};
-
-clearBtn.onclick=()=>{
-chatHistory=[];
-localStorage.removeItem('sumu_messages');
-render();
-};
-
-themeBtn.onclick=()=>document.body.classList.toggle('dark-mode');
-
-voiceToggle.onclick=()=>{
-voiceEnabled=!voiceEnabled;
-voiceToggle.innerText=voiceEnabled?"🔊":"🔇";
-if(!voiceEnabled)synth.cancel();
-};
-
+/* SEND */
 chatForm.onsubmit=async(e)=>{
 e.preventDefault();
 const text=userInput.value.trim();
@@ -212,8 +197,7 @@ if(!text||!apiKey)return;
 
 addMessage(text,'user');
 userInput.value='';
-
-const typing=addMessage('<span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span>','assistant',false);
+const typing=addMessage("Typing...","assistant",false);
 
 try{
 const response=await fetch(API_URL,{
@@ -224,43 +208,64 @@ headers:{
 },
 body:JSON.stringify({
 model:selectedModel,
-messages:[{role:"system",content:getDynamicPrompt(text)},...chatHistory],
-stream:true
+messages:[
+{role:"system",content:getBehaviorPrompt(text)},
+{role:"system",content:getReplyPrompt(text)},
+...chatHistory
+]
 })
 });
 
-const reader=response.body.getReader();
-const decoder=new TextDecoder();
-let fullText="";
+const data=await response.json();
+const reply=data?.choices?.[0]?.message?.content||"Oh babuuu 💕";
 
-while(true){
-const {done,value}=await reader.read();
-if(done)break;
-const chunk=decoder.decode(value);
-const lines=chunk.split('\n');
-
-for(const line of lines){
-if(line.startsWith('data: ')){
-const data=line.slice(6);
-if(data==="[DONE]")continue;
-try{
-const json=JSON.parse(data);
-const token=json.choices?.[0]?.delta?.content||"";
-fullText+=token;
-typing.innerHTML=marked.parse(fullText);
-scrollBottom();
-}catch{}
-}
-}
-}
-
-chatHistory.push({role:'assistant',content:fullText});
+typing.innerHTML=marked.parse(reply);
+chatHistory.push({role:'assistant',content:reply});
 localStorage.setItem('sumu_messages',JSON.stringify(chatHistory));
-speakText(fullText);
+speak(reply);
 
 }catch{
-typing.innerHTML="ওহ বাবু... নেটওয়ার্ক সমস্যা হচ্ছে 😢";
+typing.innerHTML="Network problem babuuu 😢";
 }
+};
+
+/* VOICE INPUT */
+voiceInputBtn.onclick=()=>{
+const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(!SpeechRecognition)return alert("Voice not supported");
+const recognition=new SpeechRecognition();
+recognition.lang="bn-BD";
+recognition.start();
+recognition.onresult=(e)=>{
+userInput.value=e.results[0][0].transcript;
+};
+};
+
+/* TOGGLES */
+voiceToggle.onclick=()=>{
+voiceEnabled=!voiceEnabled;
+voiceToggle.innerText=voiceEnabled?"🔊":"🔇";
+if(!voiceEnabled)synth.cancel();
+};
+
+themeBtn.onclick=()=>document.body.classList.toggle('dark-mode');
+
+settingsBtn.onclick=()=>settingsModal.classList.remove('hidden');
+
+saveSettings.onclick=()=>{
+apiKey=apiKeyInput.value.trim();
+selectedModel=modelInput.value.trim();
+localStorage.setItem('sumu_api_key',apiKey);
+localStorage.setItem('sumu_model',selectedModel);
+settingsModal.classList.add('hidden');
+};
+
+clearBtn.onclick=()=>{
+chatHistory=[];
+relationshipLevel=1;
+localStorage.clear();
+updateLevel();
+messagesContainer.innerHTML="";
 };
 </script>
 </body>
