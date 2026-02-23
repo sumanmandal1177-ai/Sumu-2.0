@@ -42,23 +42,36 @@ class="flex-1 bg-pink-50 rounded-2xl px-4 py-3 outline-none">
 </div>
 </div>
 
-<!-- SETTINGS -->
+<!-- SETTINGS MODAL -->
 <div id="settings-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center hidden">
 <div class="bg-white p-6 rounded-2xl w-80 space-y-3">
 <h2 class="font-bold text-center text-pink-500">API Settings</h2>
-<input type="password" id="openrouter-key" placeholder="OpenRouter API Key" class="w-full p-3 bg-gray-100 rounded-xl">
-<button id="save-settings" class="w-full bg-pink-500 text-white p-3 rounded-xl">Save</button>
+
+<input type="password" id="openrouter-key"
+placeholder="OpenRouter API Key (sk-or-...)"
+class="w-full p-3 bg-gray-100 rounded-xl">
+
+<input type="text" id="model-name"
+placeholder="Model (deepseek/deepseek-r1:free)"
+class="w-full p-3 bg-gray-100 rounded-xl">
+
+<button id="save-settings"
+class="w-full bg-pink-500 text-white p-3 rounded-xl">
+Save
+</button>
+
 </div>
 </div>
 
 <script>
 const API_URL="https://openrouter.ai/api/v1/chat/completions";
-const MODEL="deepseek/deepseek-r1:free";
+
+let MODEL=localStorage.getItem("openrouter_model") || "deepseek/deepseek-r1:free";
+let OPENROUTER_API=localStorage.getItem("openrouter_key") || "";
 
 let chatHistory=[];
 let relationshipLevel=1;
 let memory=JSON.parse(localStorage.getItem("sumu_memory"))||{};
-let OPENROUTER_API=localStorage.getItem("openrouter_key")||"";
 
 /* DOM */
 const chatForm=document.getElementById('chat-form');
@@ -70,13 +83,22 @@ const settingsBtn=document.getElementById('settings-btn');
 const settingsModal=document.getElementById('settings-modal');
 const saveSettings=document.getElementById('save-settings');
 
+/* Load Saved Values */
+document.getElementById("openrouter-key").value=OPENROUTER_API;
+document.getElementById("model-name").value=MODEL;
+
 /* SETTINGS */
 settingsBtn.onclick=()=>settingsModal.classList.remove("hidden");
+
 saveSettings.onclick=()=>{
 OPENROUTER_API=document.getElementById("openrouter-key").value.trim();
+MODEL=document.getElementById("model-name").value.trim() || "deepseek/deepseek-r1:free";
+
 localStorage.setItem("openrouter_key",OPENROUTER_API);
+localStorage.setItem("openrouter_model",MODEL);
+
 settingsModal.classList.add("hidden");
-alert("Saved 💖");
+alert("Saved Successfully 💖");
 };
 
 /* LEVEL */
@@ -120,6 +142,7 @@ return bubble;
 
 /* 🔊 BROWSER VOICE */
 function speak(text){
+if(!('speechSynthesis' in window)) return;
 const utterance=new SpeechSynthesisUtterance(text);
 utterance.lang="bn-BD";
 utterance.rate=1;
@@ -129,8 +152,9 @@ speechSynthesis.speak(utterance);
 /* SEND */
 chatForm.onsubmit=async(e)=>{
 e.preventDefault();
+
 const text=userInput.value.trim();
-if(!text||!OPENROUTER_API){
+if(!text || !OPENROUTER_API){
 alert("API Key বসাও আগে ⚙️");
 return;
 }
@@ -164,7 +188,14 @@ messages:[
 });
 
 const data=await response.json();
-const reply=data?.choices?.[0]?.message?.content||"কি হল বাবু? 💕";
+
+if(data.error){
+typing.innerHTML="API Error 😢";
+return;
+}
+
+const reply=data?.choices?.[0]?.message?.content || "কি হল বাবু? 💕";
+
 typing.innerHTML=reply;
 
 chatHistory.push({role:"user",content:text});
@@ -172,7 +203,7 @@ chatHistory.push({role:"assistant",content:reply});
 
 speak(reply);
 
-}catch{
+}catch(err){
 typing.innerHTML="নেটওয়ার্ক সমস্যা হয়েছে 😢";
 }
 };
